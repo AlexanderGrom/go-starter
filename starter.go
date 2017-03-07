@@ -17,22 +17,22 @@ type command struct {
 var commands = []*command{
 	cmdStart,
 	cmdStop,
+	cmdRestart,
 }
 
 var (
 	mutex       sync.Mutex
+	osFile      *os.File
 	closerFuncs []func()       = make([]func(), 0)
 	doneChan    chan bool      = make(chan bool, 1)
 	waitChan    chan bool      = make(chan bool, 1)
 	signalChan  chan os.Signal = make(chan os.Signal, 1)
 	appPath     string         = os.Args[0]
 	appName     string         = path.Base(appPath)
-	pidPath     string         = "/var/run/" + appName + ".pid"
+	pidPath     string         = "./" + appName + ".pid"
 )
 
-//
-// Авто инициализация
-//
+// Инициализация
 func init() {
 	if len(os.Args) > 1 {
 		name := os.Args[1]
@@ -46,9 +46,7 @@ func init() {
 	signalListen(signalChan, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 }
 
-//
 // Привязываем функцию завершения
-//
 func Bind(fn func()) {
 	mutex.Lock()
 	c := make([]func(), 0, len(closerFuncs)+1)
@@ -57,20 +55,16 @@ func Bind(fn func()) {
 	mutex.Unlock()
 }
 
-//
 // Ждем пока не будет обработан выход
-//
 func Wait() {
 	<-waitChan
-	fmt.Println("Please wait...")
+	Println(appName + "stopping... ")
 	<-doneChan
-	fmt.Println("App stoped!")
+	Println(" stopped!\n")
 	os.Exit(0)
 }
 
-//
 // Слушает сигналы завершения
-//
 func signalListen(signalChan chan os.Signal, siganls ...os.Signal) {
 	signal.Notify(signalChan, siganls...)
 	go func() {
@@ -85,35 +79,29 @@ func signalListen(signalChan chan os.Signal, siganls ...os.Signal) {
 	}()
 }
 
-//
 // Создаем pid файл, блокируем и сохраняем в него новый pid
-//
 func createPIDFileLockAndSet(path string, pid int) {
 	pidFile := newPIDFile(path)
 	if err := pidFile.Lock(); err != nil {
-		fmt.Println("PID not lock!")
-		os.Exit(1)
+		Fatalln("PID not lock!")
 	}
 	if err := pidFile.Set(pid); err != nil {
-		fmt.Println("PID not set!")
-		os.Exit(1)
+		Fatalln("PID not set!")
 	}
 }
 
-//
 // Обертка над os.File для работы с PID файлом
-//
 type pidFile struct {
 	*os.File
 }
 
 func newPIDFile(path string) *pidFile {
-	file, err := os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0666)
+	var err error
+	osFile, err = os.OpenFile(path, os.O_RDWR|os.O_CREATE, 0644)
 	if err != nil {
-		fmt.Println("PID file not open!")
-		os.Exit(0)
+		Fatalln("PID file not open!")
 	}
-	return &pidFile{file}
+	return &pidFile{osFile}
 }
 
 func (file *pidFile) Set(pid int) error {
@@ -121,7 +109,7 @@ func (file *pidFile) Set(pid int) error {
 	file.Seek(0, os.SEEK_SET)
 	_, err := fmt.Fprint(file, pid)
 	if err != nil {
-		return fmt.Errorf("PID not save!")
+		return Errorln("PID not save!")
 	}
 	return nil
 }
@@ -130,7 +118,7 @@ func (file *pidFile) Get() (int, error) {
 	var pid int = 0
 	_, err := fmt.Fscan(file, &pid)
 	if err != nil {
-		return 0, fmt.Errorf("PID not read!")
+		return 0, Errorln("PID not read!")
 	}
 	return pid, nil
 }

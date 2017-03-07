@@ -15,11 +15,12 @@ $ go get github.com/AlexanderGrom/go-starter
 package main
 
 import (
-	"github.com/AlexanderGrom/go-starter"
+	"context"
 	"log"
-	"net"
 	"net/http"
 	"time"
+
+	"github.com/AlexanderGrom/go-starter"
 )
 
 func main() {
@@ -29,18 +30,19 @@ func main() {
 		w.Write([]byte("Hello World!\n"))
 	})
 
-	l, err := net.Listen("tcp", ":8080")
-	if err != nil {
-		log.Fatalln("Error Listen:", err)
+	srv := &http.Server{
+		Addr:    ":8080",
+		Handler: mux,
 	}
 
 	// Registration function: Close listening port
 	starter.Bind(func() {
-		l.Close()
+		ctx, _ := context.WithTimeout(context.Background(), 60*time.Second)
+		srv.Shutdown(ctx)
 	})
 
 	go func() {
-		if err := http.Serve(l, mux); err != nil {
+		if err := srv.ListenAndServe(); err != nil {
 			log.Println("Error Serve:", err)
 		}
 	}()
@@ -73,6 +75,11 @@ $ ./myapp start
 Correct Stop programm:
 ```bash
 $ ./myapp stop
+```
+
+Correct Restart programm:
+```bash
+$ ./myapp restart
 ```
 
 ## -~- THE END -~-

@@ -1,7 +1,6 @@
 package starter
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 )
@@ -14,14 +13,13 @@ var cmdStart = &command{
 func cmdStartFunc() int {
 	pidFile := newPIDFile(pidPath)
 	if err := pidFile.Lock(); err != nil {
-		fmt.Println("App already running!")
+		Println(appName + " already running!")
 		return 0
 	}
 	pidFile.Unlock()
 	prog := appPath
 	args := os.Args[2:]
-	cmd := exec.Command(prog, args...)
-	cmd.Start()
-	fmt.Println("App running!")
+	exec.Command(prog, args...).Start()
+	Println(appName + " starting... started!")
 	return 0
 }
